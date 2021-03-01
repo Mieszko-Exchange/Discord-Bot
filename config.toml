@@ -1,0 +1,6 @@
+[General]
+    default_prefix = "m!"
+
+[Database]
+minsize = 1
+charset = "utf8"
