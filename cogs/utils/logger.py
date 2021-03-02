@@ -8,6 +8,7 @@ import asyncio
 import inspect
 import logging
 import os
+import sys
 from datetime import datetime
 from logging import Handler, handlers
 
@@ -15,14 +16,17 @@ from logging import Handler, handlers
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-LOG_LEVEL = logging.INFO
+_DEBUG = any(arg.lower() == "debug" for arg in sys.argv)
+
+LOG_LEVEL = logging.DEBUG if _DEBUG else logging.INFO
+
 
 class DatabaseErrorHandler(Handler):
     def __init__(self, db):
         self.db = db
         self.loop = asyncio.get_event_loop()
 
-        super().__init__(logging.WARNING)
+        super().__init__(logging.ERROR)
 
     def emit(self, record):
         self.loop.create_task(self.db.create_error_report(record))
@@ -39,7 +43,7 @@ FILE_HANDLER.setFormatter(LOG_FORMATTER)
 def set_level(debug=False):
     global LOG_LEVEL
 
-    LOG_LEVEL = logging.DEBUG if debug else logging.INFO
+    LOG_LEVEL = logging.DEBUG if debug == True else logging.INFO
 
 # Setup database handler
 def set_database(db):

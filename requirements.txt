@@ -1,5 +1,5 @@
 discord.py
-aiohttp
+aiohttp[speedups]
 aiomysql
 toml
 uvloop

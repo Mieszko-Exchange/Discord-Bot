@@ -12,6 +12,7 @@ import discord
 import toml
 from cogs.utils import colors as C
 from cogs.utils import logger
+from cogs.utils.payment_api import PaymentClient
 from discord.ext import commands
 
 # Attempt to load uvloop for improved event loop performance
@@ -27,7 +28,6 @@ else:
 
 _DEBUG = any(arg.lower() == "debug" for arg in sys.argv)
 
-logger.set_level(debug=_DEBUG)
 log = None
 
 class Builtin(commands.Cog):
@@ -38,6 +38,7 @@ class Builtin(commands.Cog):
     @commands.is_owner()
     async def quit_command(self, ctx):
         # TODO: close aiohttp and database pools
+        await self.bot.payment_client.close()
 
         await self.bot.logout()
 
@@ -173,6 +174,11 @@ class BrokerBot(commands.Bot):
 
         # TODO: database setup here
 
+        self.payment_client = PaymentClient(
+            credentials["Exchange"]["api_key"],
+            admin_api_key=credentials["Exchange"]["admin_api_key"]
+        )
+
         global log
         log = logger.get_logger()
 
@@ -183,7 +189,7 @@ class BrokerBot(commands.Bot):
                 name = file.stem[4:]
                 cog_name = f"cogs.{file.stem}"
 
-                print(f"Loading `{name}`" @ C.bright_blue)
+                print(f"Loading {name}" @ C.bright_blue)
 
                 try:
                     self.load_extension(cog_name)
@@ -225,6 +231,8 @@ class BrokerBot(commands.Bot):
         self.start_time = datetime.utcnow()
         boot_duration = self.start_time - self.boot_time
         print(f"Logged in as {self.user.name @ C.green}#{self.user.discriminator @ C.yellow.bold}{' DEBUG MODE' @ C.bright_magenta if self.debug else ''}\nLoaded in {boot_duration @ C.cyan}")
+
+        log.info("Started listening")
 
         await self.change_presence(activity=discord.Game(f"{self.config['General']['default_prefix']}help"))
 

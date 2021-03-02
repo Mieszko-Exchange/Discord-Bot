@@ -2,5 +2,5 @@
     default_prefix = "m!"
 
 [Database]
-minsize = 1
-charset = "utf8"
+    minsize = 1
+    charset = "utf8"
