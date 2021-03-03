@@ -1,6 +1,9 @@
 [General]
     default_prefix = "m!"
 
+[Exchange]
+    api_root = "http://localhost:8082"
+
 [Database]
     minsize = 1
     charset = "utf8"

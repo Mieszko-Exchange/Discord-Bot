@@ -16,11 +16,12 @@ from typing import Optional
 
 import aiohttp
 
+from . import config
 from .logger import get_logger
 
 log = get_logger()
 
-API_ROOT = "http://localhost:8082"
+API_ROOT = config.read("./config.toml")["Exchange"]["api_root"]
 
 class ApiResponseError(Exception):
     """Raised when the payments API returns an error response."""
@@ -47,9 +48,8 @@ class Route:
         self.url = f"{API_ROOT}/{self.path}"
 
 class PaymentClient:
-    def __init__(self, api_key: str, *, admin_api_key: str):
+    def __init__(self, api_key: str):
         self.api_key = api_key
-        self.__admin_api_key = admin_api_key
 
         self.loop = asyncio.get_event_loop()
         self.__session = None
@@ -87,7 +87,7 @@ class PaymentClient:
 
         data = data or {}
 
-        api_key = self.__admin_api_key if "admin" in kwargs else self.api_key
+        api_key = self.api_key
 
         if "send_as" in kwargs:
             api_key = kwargs["send_as"]
@@ -154,6 +154,3 @@ class PaymentClient:
     # Authkey refresh
     def auth_refresh(self):
         return self.request(Route("GET", "user/auth/refresh"))
-
-    def create_user(self):
-        return self.request(Route("GET", "user/create"))
