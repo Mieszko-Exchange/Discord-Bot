@@ -1,5 +1,7 @@
 discord.py
-aiohttp
+discord-ext-ipc
+quart
+aiohttp[speedups]
 aiomysql
 toml
 uvloop

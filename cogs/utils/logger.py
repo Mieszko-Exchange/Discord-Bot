@@ -2,12 +2,13 @@
 #
 # Copyright (c) 2021 Mieszko Exchange
 
-__all__ = "get_logger", "set_level", "set_database"
+__all__ = "prepare_logger", "get_logger", "set_level", "set_database"
 
 import asyncio
 import inspect
 import logging
 import os
+import sys
 from datetime import datetime
 from logging import Handler, handlers
 
@@ -15,21 +16,24 @@ from logging import Handler, handlers
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-LOG_LEVEL = logging.INFO
+_DEBUG = any(arg.lower() == "debug" for arg in sys.argv)
+
+LOG_LEVEL = logging.DEBUG if _DEBUG else logging.INFO
+
 
 class DatabaseErrorHandler(Handler):
     def __init__(self, db):
         self.db = db
         self.loop = asyncio.get_event_loop()
 
-        super().__init__(logging.WARNING)
+        super().__init__(logging.ERROR)
 
     def emit(self, record):
         self.loop.create_task(self.db.create_error_report(record))
 
 # Handlers
 DATABASE_HANDLER = None # must be setup on init
-FILE_HANDLER = handlers.RotatingFileHandler(filename="logs/medb.log", maxBytes=5 * 1024 * 1024, backupCount=3) # Max size of 5Mb per-file, with 3 past files
+FILE_HANDLER = handlers.RotatingFileHandler(filename="logs/medb.log", maxBytes=1 * 1024 * 1024, backupCount=3) # Max size of 1MiB per-file, with 3 past files
 LOG_FORMATTER = logging.Formatter("%(asctime)s %(levelname)s | [module %(module)s -> function %(funcName)s] (%(filename)s:%(lineno)s) | %(message)s")
 
 FILE_HANDLER.setLevel(logging.NOTSET)
@@ -39,7 +43,7 @@ FILE_HANDLER.setFormatter(LOG_FORMATTER)
 def set_level(debug=False):
     global LOG_LEVEL
 
-    LOG_LEVEL = logging.DEBUG if debug else logging.INFO
+    LOG_LEVEL = logging.DEBUG if debug == True else logging.INFO
 
 # Setup database handler
 def set_database(db):
@@ -67,3 +71,12 @@ def get_logger():
     del call_module
 
     return module_logger
+
+# manual method for injecting our handler to pre-existing loggers
+def prepare_logger(log_name):
+    module_logger = logging.getLogger(log_name)
+    module_logger.setLevel(LOG_LEVEL)
+    module_logger.addHandler(FILE_HANDLER)
+
+    if DATABASE_HANDLER is not None:
+        module_logger.addHandler(DATABASE_HANDLER)

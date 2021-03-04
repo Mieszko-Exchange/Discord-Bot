@@ -1,6 +1,10 @@
 [General]
-    default_prefix = "m!"
+    default_prefix = "m/"
+
+[Exchange]
+    api_root = "http://localhost:8082"
 
 [Database]
-minsize = 1
-charset = "utf8"
+    minsize = 1
+    charset = "utf8mb4"
+    echo = true
