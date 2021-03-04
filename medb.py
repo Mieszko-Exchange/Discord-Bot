@@ -167,10 +167,13 @@ class BrokerBot(commands.Bot):
             command_attrs=dict(hidden=True)
         )
 
+        _intents = discord.Intents.default()
+        _intents.members = True
         # Discord.py init
         super().__init__(
             *args,
             **kwargs,
+            intents=_intents,
             help_command=help_cmd,
             description="Robo-broker, a handy helper for Mieszko.Exchange",
             command_prefix=commands.when_mentioned_or(self.config["General"]["default_prefix"])
@@ -231,6 +234,8 @@ class BrokerBot(commands.Bot):
             if not kwargs.get("quiet"):
                 await message.channel.send(reaction)
 
+        return reaction
+
     # Discord events
 
     async def on_ready(self):
@@ -246,9 +251,6 @@ class BrokerBot(commands.Bot):
 
     async def on_ipc_ready(self):
         print(f"IPC server is listening {f'[{self.ipc.host}:{self.ipc.port}]' @ C.white.on_black}")
-
-    async def on_ipc_error(self, endpoint, error):
-        print(f"IPC endpoint {endpoint @ C.on_yellow} raised an error.\n{error @ C.bright_red}")
 
     async def on_resume(self):
         print("resumed")

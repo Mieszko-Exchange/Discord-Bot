@@ -36,17 +36,21 @@ class EscrowStatus(Enum):
     Pending = "pending"
     Received = "paid"
     Finished = "complete"
+    Failed = "failed"
 
 class EscrowAction(Enum):
     Cancelled = "cancel"
     Released = "release"
+    Aborted = "abort"
 
 class EscrowActioner(Enum):
     Sender = "sender"
     Receiver = "receiver"
     Moderator = "moderator"
 
-EscrowPayment = namedtuple("EscrowPayment", "id currency sender receiver source_addr dest_addr status amount started_at last_action_at")
+User = namedtuple("User", "id created_at locked")
+
+EscrowPayment = namedtuple("EscrowPayment", "id currency sender receiver source_addr dest_addr status amount started_at for_message last_action_at")
 EscrowEvent = namedtuple("EscrowEvent", "payment_id action actioner actioner_id action_at action_message")
 
 SavedAddress = namedtuple("SavedAddress", "address is_public currency")
@@ -101,6 +105,17 @@ class SQL:
 
         return data
 
+    # Higher-level utility methods
+
+    async def ensure_user(self, user_id, *, create_locked=False):
+        user = await self.get_user_details(user_id)
+
+        if not user:
+            created = await self.create_user(user_id, create_locked=create_locked)
+            user = await self.get_user_details(user_id)
+
+        return user
+
     # Currency methods
 
     async def get_currency_details(self, currency):
@@ -125,7 +140,9 @@ class SQL:
 
                 data = await cur.fetchall()
 
-        return data
+        if data:
+            (_id, timestamp, locked) = data[0]
+            return User(_id, timestamp, bool(locked))
 
     async def create_user(self, user_id, *, create_locked=False):
         async with self.pool.acquire() as conn:
@@ -134,7 +151,7 @@ class SQL:
                     dedent("""
                         INSERT INTO `User` (discordID, createdAt, locked)
                         VALUES (%s, NOW(), %s);
-                    """), user_id, create_locked * 1
+                    """), (user_id, create_locked * 1)
                 )
 
         return rows_changed == 1
@@ -172,7 +189,7 @@ class SQL:
             async with conn.cursor() as cur:
                 await cur.execute(
                     dedent("""
-                        SELECT lA.address, lA.public, lA.locked, c.code FROM LinkedAddress lA, Currency c
+                        SELECT lA.address, lA.public, c.code FROM LinkedAddress lA, Currency c
                         WHERE lA.userID = %s AND lA.currency = c.id AND c.code = %s
                         LIMIT 1;
                     """), (user_id, currency.value)
@@ -188,7 +205,7 @@ class SQL:
             async with conn.cursor() as cur:
                 await cur.execute(
                     dedent("""
-                        SELECT lA.address, c.code FROM LinkedAddress lA, Currency c
+                        SELECT lA.address, lA.public, c.code FROM LinkedAddress lA, Currency c
                         WHERE lA.userID = %s and lA.currency = c.id;
                     """), (user_id,)
                 )
@@ -234,7 +251,7 @@ class SQL:
                     dedent("""
                         INSERT INTO LinkedAddress (userID, currency, address, public)
                         VALUES (%s, (SELECT id from Currency WHERE code = %s LIMIT 1), %s, %s);
-                    """), user_id, currency.value, address, create_private * 1
+                    """), (user_id, currency.value, address, create_private * 1)
                 )
 
                 address_id = cur.lastrowid
@@ -260,14 +277,14 @@ class SQL:
     async def get_payments(self, **kwargs):
         raise UnimplementedError()
 
-    async def create_payment(self, currency, sender_id, receiver_id, src_addr, dst_addr, amount):
+    async def create_payment(self, currency, sender_id, receiver_id, src_addr, dst_addr, amount, *, reason=None):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
                     dedent("""
-                        INSERT INTO EscrowPayment (currency, sender, receiver, sourceAddress, destAddress, status, amount, startedAt)
-                        VALUES (%s, %s, %s, %s, %s, 'pending', %s, %s)
-                    """), (currency.value, sender_id, receiver_id, src_addr, dst_addr, amount, self.to_time_str_ms(datetime.utcnow()))
+                        INSERT INTO EscrowPayment (currency, sender, receiver, sourceAddress, destAddress, status, amount, startedAt, forMessage)
+                        VALUES ((SELECT id FROM Currency WHERE code = %s), %s, %s, %s, %s, 'pending', %s, %s, %s)
+                    """), (currency.value, sender_id, receiver_id, src_addr, dst_addr, amount, self.to_time_str_ms(datetime.utcnow()), reason)
                 )
 
                 payment_id = cur.lastrowid
@@ -290,12 +307,12 @@ class SQL:
         # Do proper data conversions so everything comes out polished
         if data:
             (_id, currency_id, sender_id, receiver_id, src_addr, dst_addr,
-                status, amount, started_at, last_action_at, currency_code
+                status, amount, started_at, for_message, last_action_at, currency_code
             ) = data[0]
             return EscrowPayment(
                 _id, CurrencyType(currency_code), sender_id, receiver_id,
                 src_addr, dst_addr, EscrowStatus(status), amount,
-                started_at, last_action_at if isinstance(last_action_at, datetime) else None
+                started_at, for_message, last_action_at if isinstance(last_action_at, datetime) else None
             )
 
     async def update_payment_status(self, payment_id, status):

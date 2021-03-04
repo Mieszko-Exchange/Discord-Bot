@@ -37,7 +37,7 @@ class Pay(commands.Cog):
 
         await ctx.send(f"```\n{currency_data!r}\n```")
 
-    @commands.command(name="addrs")
+    @commands.command(name="addrs", enabled=False)
     @commands.is_owner()
     async def get_addrs(self, ctx):
         currency_data = await self.bot.db.get_all_addresses(ctx.author.id)

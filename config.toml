@@ -8,3 +8,4 @@
     minsize = 1
     charset = "utf8mb4"
     echo = true
+    autocommit=true

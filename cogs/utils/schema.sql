@@ -52,9 +52,10 @@ CREATE TABLE EscrowPayment (
     receiver bigint unsigned NOT NULL,
     sourceAddress varchar(256) NOT NULL,
     destAddress varchar(256) NOT NULL,
-    status enum('pending', 'paid', 'complete') NOT NULL,
+    status enum('pending', 'paid', 'complete', 'failed') NOT NULL,
     amount decimal(24, 12) unsigned NOT NULL,
     startedAt timestamp NOT NULL,
+    forMessage tinytext,
     lastActionAt timestamp,
     PRIMARY KEY (sender, receiver),
     KEY (sourceAddress, destAddress),
@@ -70,7 +71,7 @@ CREATE TABLE EscrowPayment (
 -- Escrow action details
 CREATE TABLE EscrowEvent (
     paymentID serial,
-    action enum('cancel', 'release'),
+    action enum('cancel', 'release', 'abort'),
     actioner enum('sender', 'receiver', 'moderator') NOT NULL,
     actionerID bigint unsigned NOT NULL,
     actionAt timestamp NOT NULL,
