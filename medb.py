@@ -11,8 +11,9 @@ import aiohttp
 import discord
 from cogs.utils import colors as C
 from cogs.utils import config, logger
+from cogs.utils.db import SQL
 from cogs.utils.payment_api import PaymentClient
-from discord.ext import commands
+from discord.ext import commands, ipc
 
 # Attempt to load uvloop for improved event loop performance
 try:
@@ -36,8 +37,8 @@ class Builtin(commands.Cog):
     @commands.command(name="quit", brief="shutdown bot")
     @commands.is_owner()
     async def quit_command(self, ctx):
-        # TODO: close aiohttp and database pools
         await self.bot.payment_client.close()
+        await self.bot.db.close()
 
         await self.bot.logout()
 
@@ -172,17 +173,21 @@ class BrokerBot(commands.Bot):
             **kwargs,
             help_command=help_cmd,
             description="Robo-broker, a handy helper for Mieszko.Exchange",
-            command_prefix=self.config["General"]["default_prefix"]
+            command_prefix=commands.when_mentioned_or(self.config["General"]["default_prefix"])
         )
 
         # TODO: aiohttp task here
 
-        # TODO: database setup here
+        self.db = SQL(**credentials["Database"], **self.config.get("Database"))
 
         self.payment_client = PaymentClient(credentials["Exchange"]["api_key"])
 
+        self.ipc = ipc.Server(self, secret_key=credentials["IPC"]["secret"])
+
         global log
         log = logger.get_logger()
+
+        # logger.prepare_logger("discord.ext.ipc.server")
 
         self.boot_time = datetime.utcnow()
 
@@ -191,12 +196,12 @@ class BrokerBot(commands.Bot):
                 name = file.stem[4:]
                 cog_name = f"cogs.{file.stem}"
 
-                print(f"Loading {name}" @ C.bright_blue)
+                print(f"Loading {f'[{name}]' @ C.on_bright_blue}")
 
                 try:
                     self.load_extension(cog_name)
                 except Exception as e:
-                    print(f"Failed to load {name @ C.bright_red}: [{type(e).__name__}]: {e}")
+                    print(f"Failed to load {f'[{name}]' @ C.on_bright_red}: [{type(e).__name__}]: {e}")
 
     # Helper functions
 
@@ -226,21 +231,27 @@ class BrokerBot(commands.Bot):
             if not kwargs.get("quiet"):
                 await message.channel.send(reaction)
 
-
     # Discord events
 
     async def on_ready(self):
         self.start_time = datetime.utcnow()
         boot_duration = self.start_time - self.boot_time
-        print(f"Logged in as {self.user.name @ C.green}#{self.user.discriminator @ C.yellow.bold}{' DEBUG MODE' @ C.bright_magenta if self.debug else ''}\nLoaded in {boot_duration @ C.cyan}")
+        print(f"Logged in as {self.user.name @ C.on_green}#{self.user.discriminator @ C.on_yellow.bold}{' DEBUG MODE' @ C.bright_magenta if self.debug else ''}\nLoaded in {boot_duration @ C.on_cyan}")
+
+        await self.db.init()
 
         log.info("Started listening")
 
         await self.change_presence(activity=discord.Game(f"{self.config['General']['default_prefix']}help"))
 
+    async def on_ipc_ready(self):
+        print(f"IPC server is listening {f'[{self.ipc.host}:{self.ipc.port}]' @ C.white.on_black}")
+
+    async def on_ipc_error(self, endpoint, error):
+        print(f"IPC endpoint {endpoint @ C.on_yellow} raised an error.\n{error @ C.bright_red}")
+
     async def on_resume(self):
         print("resumed")
-
 
     # Magic methods
 
@@ -258,4 +269,5 @@ class BrokerBot(commands.Bot):
         return True
 
 with BrokerBot() as bot:
+    bot.ipc.start()
     bot.run(bot.token)

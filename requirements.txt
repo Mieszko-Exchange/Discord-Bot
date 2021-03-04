@@ -1,4 +1,6 @@
 discord.py
+discord-ext-ipc
+quart
 aiohttp[speedups]
 aiomysql
 toml

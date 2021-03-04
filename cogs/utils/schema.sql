@@ -29,7 +29,6 @@ CREATE TABLE User (
     discordID bigint unsigned NOT NULL,
     createdAt datetime NOT NULL,
     locked tinyint(1) unsigned NOT NULL DEFAULT 0,
-    defaultAddress varchar(256),
     PRIMARY KEY (discordID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -38,9 +37,9 @@ CREATE TABLE LinkedAddress (
     userID bigint unsigned NOT NULL,
     currency int(10) unsigned NOT NULL,
     address varchar(256) NOT NULL,
-    locked tinyint(1) unsigned NOT NULL DEFAULT 0,
-    PRIMARY KEY (userID, address),
-    KEY (currency),
+    public tinyint(1) unsigned NOT NULL DEFAULT 1,
+    PRIMARY KEY (userID, currency),
+    KEY (address),
     FOREIGN KEY (userID) REFERENCES User (discordID) ON UPDATE CASCADE,
     FOREIGN KEY (currency) REFERENCES Currency (id) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

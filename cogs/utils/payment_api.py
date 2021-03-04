@@ -36,7 +36,7 @@ class ApiResponseError(Exception):
 class CurrencyType(Enum):
     TNBCoin  = "TNBC"
     Litecoin = "LTC"
-
+    Bitcoin  = "BTC"
 
 @dataclass
 class Route:
