@@ -2,9 +2,12 @@
 #
 # Copyright (c) 2021 Mieszko Exchange
 
+from decimal import Decimal
+
 import discord
 from discord.ext import commands
 
+from .utils.db import DecimalInvalidAmountError
 #from .utils import checks
 from .utils.logger import get_logger
 from .utils.payment_api import ApiResponseError, CurrencyType
@@ -52,6 +55,17 @@ class Pay(commands.Cog):
 
         await ctx.send(f"```\n{data!r}\n```")
 
+    @commands.command(name="amount")
+    @commands.is_owner()
+    async def get_amount(self, ctx, amount: Decimal, coin: CurrencyType):
+        try:
+            verified_amount = await self.bot.db.ensure_precise_amount(coin, amount)
+
+        except DecimalInvalidAmountError as e:
+            await ctx.send(f"\N{WARNING SIGN} The amount {e.args[0]} is not valid. A maximum of {e.args[1]} decimal places is allowed.")
+            return
+
+        await ctx.send(f"Verified amount is {verified_amount} {coin.value}")
 
 
 def setup(bot):

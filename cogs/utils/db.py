@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2021 Mieszko Exchange
 
-__all__ = "EscrowStatus", "EscrowAction", "EscrowActioner", "EscrowPayment", "EscrowEvent", "SavedAddress", "SQL"
+__all__ = "DecimalPrecisionError", "DecimalInvalidAmountError", "EscrowStatus", "EscrowAction", "EscrowActioner", "User", "EscrowPayment", "EscrowEvent", "SavedAddress", "SQL"
 
 import asyncio
 import decimal
@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from pathlib import Path
 from textwrap import dedent
 
 import aiomysql
@@ -23,19 +22,25 @@ log = get_logger()
 prepare_logger("aiomysql")
 
 # Set up proper decimal precision
-d_context = decimal.getcontext()
-d_context.prec = 18 # same as ETH
-d_context.rounding = decimal.ROUND_HALF_UP
-d_context.Emin = decimal.MIN_EMIN
-d_context.Emax = decimal.MAX_EMAX
+d_context = decimal.Context(
+    prec=18, rounding=decimal.ROUND_HALF_UP, Emin=decimal.MIN_EMIN, Emax=decimal.MAX_EMAX
+)
+
+decimal.setcontext(d_context)
 
 DATETIME_STR = "%Y-%m-%d %H:%M:%S"
 TIMESTAMP_STR = f"{DATETIME_STR}.%f"
 
+class DecimalPrecisionError(Exception):
+    pass
+
+class DecimalInvalidAmountError(Exception):
+    pass
+
 class EscrowStatus(Enum):
     Pending = "pending"
     Received = "paid"
-    Finished = "complete"
+    Completed = "complete"
     Failed = "failed"
 
 class EscrowAction(Enum):
@@ -45,7 +50,7 @@ class EscrowAction(Enum):
 
 class EscrowActioner(Enum):
     Sender = "sender"
-    Receiver = "receiver"
+    Recipient = "receiver"
     Moderator = "moderator"
 
 User = namedtuple("User", "id created_at locked")
@@ -127,7 +132,36 @@ class SQL:
 
                 data = await cur.fetchall()
 
-        return data
+        if data:
+            return data[0]
+
+        raise RuntimeError(f"SELECT for currency {currency.value} has FAILED. This should not happen")
+
+    async def ensure_precise_amount(self, currency, amount, *, raise_on_fail=False):
+        (c_id, c_code, c_precision) = await self.get_currency_details(currency)
+        prec_verifier = Decimal(10) ** (-c_precision) # this creates a decimal number with `c_precision` digits
+
+        ctx = decimal.getcontext()
+        ctx.clear_flags()
+
+        try:
+            if amount.is_nan():
+                raise decimal.InvalidOperation
+
+            # this will set the Inexact flag if prec_verifier has fewer digits than amount
+            new_amount = amount.quantize(prec_verifier)
+
+        except decimal.InvalidOperation:
+            raise DecimalInvalidAmountError(amount, c_precision)
+
+        if ctx.flags[decimal.Inexact]:
+            log.debug(f"Precision of {amount} does not match {c_precision}, clipping to {new_amount}")
+            ctx.clear_flags()
+
+            if raise_on_fail:
+                raise DecimalPrecisionError(amount, c_precision, prec_verifier)
+
+        return new_amount
 
     # User methods
 
@@ -298,7 +332,8 @@ class SQL:
                     dedent("""
                         SELECT E.*, C.code FROM EscrowPayment E, Currency C
                         WHERE E.sender = %s AND E.receiver = %s
-                        AND E.status != 'complete' AND C.id = E.currency
+                        AND E.status != 'complete' AND E.status != 'failed'
+                        AND C.id = E.currency
                         LIMIT 1;
                     """), (sender_id, receiver_id)
                 )

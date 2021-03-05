@@ -79,7 +79,6 @@ class PaymentClient:
 
         return text
 
-
     # here's where the magic happens
     async def request(self, route: Route, data: dict = None, **kwargs):
         method = route.method
@@ -111,7 +110,6 @@ class PaymentClient:
 
         except Exception as e:
             print(f"[{type(e).__name__}]: {e}")
-
 
     # API methods
 
@@ -147,7 +145,6 @@ class PaymentClient:
         }
 
         return self.request(Route("POST", "payments/balance"), payload, **kwargs)
-
 
     # Admin-type stuff
 

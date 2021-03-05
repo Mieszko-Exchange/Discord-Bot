@@ -3,9 +3,10 @@
 
 [Exchange]
     api_root = "http://localhost:8082"
+    webserver_root = "http://localhost:5000"
 
 [Database]
     minsize = 1
     charset = "utf8mb4"
     echo = true
-    autocommit=true
+    autocommit = true
