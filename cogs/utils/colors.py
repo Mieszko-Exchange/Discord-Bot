@@ -76,11 +76,11 @@ class Style(Enum):
 
 @dataclass
 class StylizedString:
-    foreground: Optional[ Color ]
-    background: Optional[ Color ]
-    style_flag: InitVar[ Optional[ int ] ]
+    foreground: Optional[Color]
+    background: Optional[Color]
+    style_flag: InitVar[Optional[int]]
     text: str
-    styles: List[ Style ] = field(init=False)
+    styles: List[Style] = field(init=False)
 
     def __post_init__(self, style_flag):
         self.styles = Style.from_bitflag(style_flag)
@@ -94,14 +94,14 @@ class StylizedString:
 
 
 class StyleHandler(types.ModuleType):
-    __foreground: Optional[ Color ] = None
-    __background: Optional[ Color ] = None
-    __style: Optional[ int ] = None
-    __spans: List[ StylizedString ] = []
+    __foreground: Optional[Color] = None
+    __background: Optional[Color] = None
+    __style: Optional[int] = None
+    __spans: List[StylizedString] = []
 
     def __getattr__(self, name: str):
         if (style := Style.from_str(name)) is None:
-            clean_name = name[3 if name.startswith("on_") else 0:]
+            clean_name = name[3 if name.startswith("on_") else 0 :]
             is_fg = name == clean_name
 
             if (color := Color.from_str(clean_name)) is None:
@@ -128,16 +128,16 @@ class StyleHandler(types.ModuleType):
                 self.__style = style.bitmask
 
             else:
-                    if self.__style is None:
-                        self.__style = style.bitmask
-                    else:
-                        self.__style |= style.bitmask
+                if self.__style is None:
+                    self.__style = style.bitmask
+                else:
+                    self.__style |= style.bitmask
 
         return self
 
     def __rmatmul__(self, text: str):
-        #if not isinstance(text, str):
-         #   raise RuntimeError("oops")
+        # if not isinstance(text, str):
+        #   raise RuntimeError("oops")
 
         span = StylizedString(self.__foreground, self.__background, self.__style, str(text))
 
@@ -167,5 +167,6 @@ class StyleHandler(types.ModuleType):
         self.__style = None
 
         return formatted
+
 
 sys.modules[__name__].__class__ = StyleHandler

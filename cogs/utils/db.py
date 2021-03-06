@@ -2,7 +2,18 @@
 #
 # Copyright (c) 2021 Mieszko Exchange
 
-__all__ = "DecimalPrecisionError", "DecimalInvalidAmountError", "EscrowStatus", "EscrowAction", "EscrowActioner", "User", "EscrowPayment", "EscrowEvent", "SavedAddress", "SQL"
+__all__ = (
+    "DecimalPrecisionError",
+    "DecimalInvalidAmountError",
+    "EscrowStatus",
+    "EscrowAction",
+    "EscrowActioner",
+    "User",
+    "EscrowPayment",
+    "EscrowEvent",
+    "SavedAddress",
+    "SQL",
+)
 
 import asyncio
 import decimal
@@ -22,20 +33,21 @@ log = get_logger()
 prepare_logger("aiomysql")
 
 # Set up proper decimal precision
-d_context = decimal.Context(
-    prec=18, rounding=decimal.ROUND_HALF_UP, Emin=decimal.MIN_EMIN, Emax=decimal.MAX_EMAX
-)
+d_context = decimal.Context(prec=18, rounding=decimal.ROUND_HALF_UP, Emin=decimal.MIN_EMIN, Emax=decimal.MAX_EMAX)
 
 decimal.setcontext(d_context)
 
 DATETIME_STR = "%Y-%m-%d %H:%M:%S"
 TIMESTAMP_STR = f"{DATETIME_STR}.%f"
 
+
 class DecimalPrecisionError(Exception):
     pass
 
+
 class DecimalInvalidAmountError(Exception):
     pass
+
 
 class EscrowStatus(Enum):
     Pending = "pending"
@@ -43,22 +55,29 @@ class EscrowStatus(Enum):
     Completed = "complete"
     Failed = "failed"
 
+
 class EscrowAction(Enum):
     Cancelled = "cancel"
     Released = "release"
     Aborted = "abort"
+
 
 class EscrowActioner(Enum):
     Sender = "sender"
     Recipient = "receiver"
     Moderator = "moderator"
 
+
 User = namedtuple("User", "id created_at locked")
 
-EscrowPayment = namedtuple("EscrowPayment", "id currency sender receiver source_addr dest_addr status amount started_at for_message last_action_at")
+EscrowPayment = namedtuple(
+    "EscrowPayment",
+    "id currency sender receiver source_addr dest_addr status amount started_at for_message last_action_at",
+)
 EscrowEvent = namedtuple("EscrowEvent", "payment_id action actioner actioner_id action_at action_message")
 
 SavedAddress = namedtuple("SavedAddress", "address is_public currency")
+
 
 class SQL:
     def __init__(self, *args, **kwargs):
@@ -113,11 +132,8 @@ class SQL:
     # Higher-level utility methods
 
     async def ensure_user(self, user_id, *, create_locked=False):
+        created = await self.create_user(user_id, create_locked=create_locked)
         user = await self.get_user_details(user_id)
-
-        if not user:
-            created = await self.create_user(user_id, create_locked=create_locked)
-            user = await self.get_user_details(user_id)
 
         return user
 
@@ -126,9 +142,7 @@ class SQL:
     async def get_currency_details(self, currency):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT * FROM Currency WHERE code = %s;", (currency.value,)
-                )
+                await cur.execute("SELECT * FROM Currency WHERE code = %s;", (currency.value,))
 
                 data = await cur.fetchall()
 
@@ -139,7 +153,7 @@ class SQL:
 
     async def ensure_precise_amount(self, currency, amount, *, raise_on_fail=False):
         (c_id, c_code, c_precision) = await self.get_currency_details(currency)
-        prec_verifier = Decimal(10) ** (-c_precision) # this creates a decimal number with `c_precision` digits
+        prec_verifier = Decimal(10) ** (-c_precision)  # this creates a decimal number with `c_precision` digits
 
         ctx = decimal.getcontext()
         ctx.clear_flags()
@@ -168,9 +182,7 @@ class SQL:
     async def get_user_details(self, user_id):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT * FROM User WHERE discordID = %s;", (user_id,)
-                )
+                await cur.execute("SELECT * FROM User WHERE discordID = %s;", (user_id,))
 
                 data = await cur.fetchall()
 
@@ -182,10 +194,13 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 rows_changed = await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         INSERT INTO `User` (discordID, createdAt, locked)
                         VALUES (%s, NOW(), %s);
-                    """), (user_id, create_locked * 1)
+                    """
+                    ),
+                    (user_id, create_locked * 1),
                 )
 
         return rows_changed == 1
@@ -194,10 +209,13 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         UPDATE User SET locked = 1 WHERE discordID = %s
                         LIMIT 1;
-                    """), user_id
+                    """
+                    ),
+                    user_id,
                 )
                 rows_changed = cur.rowcount
 
@@ -207,10 +225,13 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         UPDATE User SET locked = 0 WHERE discordID = %s
                         LIMIT 1;
-                    """), user_id
+                    """
+                    ),
+                    user_id,
                 )
                 rows_changed = cur.rowcount
 
@@ -222,11 +243,14 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         SELECT lA.address, lA.public, c.code FROM LinkedAddress lA, Currency c
                         WHERE lA.userID = %s AND lA.currency = c.id AND c.code = %s
                         LIMIT 1;
-                    """), (user_id, currency.value)
+                    """
+                    ),
+                    (user_id, currency.value),
                 )
                 data = await cur.fetchall()
 
@@ -238,10 +262,13 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         SELECT lA.address, lA.public, c.code FROM LinkedAddress lA, Currency c
                         WHERE lA.userID = %s and lA.currency = c.id;
-                    """), (user_id,)
+                    """
+                    ),
+                    (user_id,),
                 )
                 data = await cur.fetchall()
 
@@ -256,10 +283,13 @@ class SQL:
         async with self.pool.acquire() as con:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         UPDATE LinkedAddress SET public = 0
                         WHERE userID = %s AND address = %s;
-                    """), (user_id, address)
+                    """
+                    ),
+                    (user_id, address),
                 )
                 rows_changed = cur.rowcount
 
@@ -269,10 +299,13 @@ class SQL:
         async with self.pool.acquire() as con:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         UPDATE LinkedAddress SET public = 1
                         WHERE userID = %s AND address = %s;
-                    """), (user_id, address)
+                    """
+                    ),
+                    (user_id, address),
                 )
                 rows_changed = cur.rowcount
 
@@ -282,10 +315,13 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         INSERT INTO LinkedAddress (userID, currency, address, public)
                         VALUES (%s, (SELECT id from Currency WHERE code = %s LIMIT 1), %s, %s);
-                    """), (user_id, currency.value, address, create_private * 1)
+                    """
+                    ),
+                    (user_id, currency.value, address, create_private * 1),
                 )
 
                 address_id = cur.lastrowid
@@ -296,11 +332,14 @@ class SQL:
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         DELETE FROM LinkedAddress
                         WHERE userID = %s AND address = %s
                         LIMIT 1;
-                    """), (user_id, address)
+                    """
+                    ),
+                    (user_id, address),
                 )
                 rows_changed = cur.rowcount
 
@@ -315,10 +354,22 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         INSERT INTO EscrowPayment (currency, sender, receiver, sourceAddress, destAddress, status, amount, startedAt, forMessage)
                         VALUES ((SELECT id FROM Currency WHERE code = %s), %s, %s, %s, %s, 'pending', %s, %s, %s)
-                    """), (currency.value, sender_id, receiver_id, src_addr, dst_addr, amount, self.to_time_str_ms(datetime.utcnow()), reason)
+                    """
+                    ),
+                    (
+                        currency.value,
+                        sender_id,
+                        receiver_id,
+                        src_addr,
+                        dst_addr,
+                        amount,
+                        self.to_time_str_ms(datetime.utcnow()),
+                        reason,
+                    ),
                 )
 
                 payment_id = cur.lastrowid
@@ -329,35 +380,60 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         SELECT E.*, C.code FROM EscrowPayment E, Currency C
                         WHERE E.sender = %s AND E.receiver = %s
                         AND E.status != 'complete' AND E.status != 'failed'
                         AND C.id = E.currency
                         LIMIT 1;
-                    """), (sender_id, receiver_id)
+                    """
+                    ),
+                    (sender_id, receiver_id),
                 )
                 data = await cur.fetchall()
 
         # Do proper data conversions so everything comes out polished
         if data:
-            (_id, currency_id, sender_id, receiver_id, src_addr, dst_addr,
-                status, amount, started_at, for_message, last_action_at, currency_code
+            (
+                _id,
+                currency_id,
+                sender_id,
+                receiver_id,
+                src_addr,
+                dst_addr,
+                status,
+                amount,
+                started_at,
+                for_message,
+                last_action_at,
+                currency_code,
             ) = data[0]
             return EscrowPayment(
-                _id, CurrencyType(currency_code), sender_id, receiver_id,
-                src_addr, dst_addr, EscrowStatus(status), amount,
-                started_at, for_message, last_action_at if isinstance(last_action_at, datetime) else None
+                _id,
+                CurrencyType(currency_code),
+                sender_id,
+                receiver_id,
+                src_addr,
+                dst_addr,
+                EscrowStatus(status),
+                amount,
+                started_at,
+                for_message,
+                last_action_at if isinstance(last_action_at, datetime) else None,
             )
 
     async def update_payment_status(self, payment_id, status):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         UPDATE EscrowPayment SET status = %s, lastActionAt = %s
                         WHERE id = %s;
-                    """), (status.value, self.to_time_str_ms(datetime.utcnow()), payment_id)
+                    """
+                    ),
+                    (status.value, self.to_time_str_ms(datetime.utcnow()), payment_id),
                 )
 
                 rows_changed = cur.rowcount
@@ -370,26 +446,37 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         SELECT * FROM EscrowEvent WHERE paymentID = %s LIMIT 1;
-                    """), (payment_id,)
+                    """
+                    ),
+                    (payment_id,),
                 )
                 data = cur.fetchall()
 
         if data:
             (_id, action, actioner, actioner_id, action_at, action_msg) = data[0]
-            return EscrowEvent(
-                _id, EscrowAction(action), EscrowActioner(actioner), actioner_id, action_at, action_msg
-            )
+            return EscrowEvent(_id, EscrowAction(action), EscrowActioner(actioner), actioner_id, action_at, action_msg)
 
     async def create_payment_event(self, payment_id, action, actioner, actioner_id, *, message=None):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         INSERT INTO EscrowEvent (paymentID, action, actioner, actionerID, actionAt, actionMsg)
                         VALUES (%s, %s, %s, %s, %s, %s);
-                    """), (payment_id, action.value, actioner.value, actioner_id, self.to_time_str_ms(datetime.utcnow()), message)
+                    """
+                    ),
+                    (
+                        payment_id,
+                        action.value,
+                        actioner.value,
+                        actioner_id,
+                        self.to_time_str_ms(datetime.utcnow()),
+                        message,
+                    ),
                 )
                 rows_changed = cur.rowcount
 
@@ -400,13 +487,21 @@ class SQL:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    dedent("""
+                    dedent(
+                        """
                         INSERT INTO LoggedErrors (`level`, module, function, filename, lineno, message, `timestamp`)
                         VALUES (%s, %s, %s, %s, %s, %s, %s);
-                    """),
-                    (report.levelName, report.module, report.funcName, report.filename,
-                        report.lineno, report.getMessage(), self.to_time_str(datetime.fromtimestamp(report.created))
-                    )
+                    """
+                    ),
+                    (
+                        report.levelName,
+                        report.module,
+                        report.funcName,
+                        report.filename,
+                        report.lineno,
+                        report.getMessage(),
+                        self.to_time_str(datetime.fromtimestamp(report.created)),
+                    ),
                 )
 
                 report_id = cur.lastrowid

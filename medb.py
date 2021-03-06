@@ -9,11 +9,12 @@ from pathlib import Path
 
 import aiohttp
 import discord
+from discord.ext import commands, ipc
+
 from cogs.utils import colors as C
 from cogs.utils import config, logger
 from cogs.utils.db import SQL
 from cogs.utils.payment_api import PaymentClient
-from discord.ext import commands, ipc
 
 # Attempt to load uvloop for improved event loop performance
 try:
@@ -29,6 +30,7 @@ else:
 _DEBUG = any(arg.lower() == "debug" for arg in sys.argv)
 
 log = None
+
 
 class Builtin(commands.Cog):
     def __init__(self, bot):
@@ -106,7 +108,11 @@ class Builtin(commands.Cog):
     @commands.is_owner()
     async def list_cogs(self, ctx, name: str = None):
         if name is None:
-            await ctx.send(f"Currently loaded cogs:\n{' '.join('`' + cog_name + '`' for cog_name in self.bot.extensions)}" if len(self.bot.extensions) > 0 else "No cogs loaded")
+            await ctx.send(
+                f"Currently loaded cogs:\n{' '.join('`' + cog_name + '`' for cog_name in self.bot.extensions)}"
+                if len(self.bot.extensions) > 0
+                else "No cogs loaded"
+            )
 
         else:
             if self.bot.extensions.get("cogs.mod_" + name) is None:
@@ -114,6 +120,7 @@ class Builtin(commands.Cog):
 
             else:
                 await self.bot.post_reaction(ctx.message, success=True)
+
 
 # TODO
 
@@ -145,6 +152,7 @@ class Builtin(commands.Cog):
 # Escrow should work such that people can use it on their own without involvement from us and only come to us if they need to
 # And ofc /balance, /send would be better with / commands to hide people's balances if we can
 
+
 class BrokerBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         # Set up custom stuff before discord.py init
@@ -163,9 +171,7 @@ class BrokerBot(commands.Bot):
         self.start_time = None
         self.resume_time = None
 
-        help_cmd = commands.DefaultHelpCommand(
-            command_attrs=dict(hidden=True)
-        )
+        help_cmd = commands.DefaultHelpCommand(command_attrs=dict(hidden=True))
 
         _intents = discord.Intents.default()
         _intents.members = True
@@ -176,7 +182,7 @@ class BrokerBot(commands.Bot):
             intents=_intents,
             help_command=help_cmd,
             description="Robo-broker, a handy helper for Mieszko.Exchange",
-            command_prefix=commands.when_mentioned_or(self.config["General"]["default_prefix"])
+            command_prefix=commands.when_mentioned_or(self.config["General"]["default_prefix"]),
         )
 
         # TODO: aiohttp task here
@@ -221,6 +227,9 @@ class BrokerBot(commands.Bot):
             elif kwargs.get("warning"):
                 reaction = "\N{WARNING SIGN}"
 
+            elif kwargs.get("dms"):
+                reaction = "\N{POSTBOX}"
+
             else:
                 reaction = "\N{NO ENTRY}"
 
@@ -241,7 +250,9 @@ class BrokerBot(commands.Bot):
     async def on_ready(self):
         self.start_time = datetime.utcnow()
         boot_duration = self.start_time - self.boot_time
-        print(f"Logged in as {self.user.name @ C.on_green}#{self.user.discriminator @ C.on_yellow.bold}{' DEBUG MODE' @ C.bright_magenta if self.debug else ''}\nLoaded in {boot_duration @ C.on_cyan}")
+        print(
+            f"Logged in as {self.user.name @ C.on_green}#{self.user.discriminator @ C.on_yellow.bold}{' DEBUG MODE' @ C.bright_magenta if self.debug else ''}\nLoaded in {boot_duration @ C.on_cyan}"
+        )
 
         await self.db.init()
 
@@ -269,6 +280,7 @@ class BrokerBot(commands.Bot):
         print("Exiting.." @ C.yellow)
 
         return True
+
 
 with BrokerBot() as bot:
     bot.ipc.start()

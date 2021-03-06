@@ -68,15 +68,12 @@ class Events(commands.Cog):
         else:
             print(f">> ! {f'[{type(error).__name__}]' @ C.on_red.bold}: {error}")
 
-
     # IPC event listeners
 
     @commands.Cog.listener()
     async def on_ipc_error(self, endpoint, error):
         print(f"IPC endpoint {endpoint @ C.on_yellow} raised an error.\n{error @ C.bright_red}")
         traceback.print_tb(error.__traceback__)
-
-
 
 
 def setup(bot):

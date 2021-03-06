@@ -8,7 +8,8 @@ import discord
 from discord.ext import commands
 
 from .utils.db import DecimalInvalidAmountError
-#from .utils import checks
+
+# from .utils import checks
 from .utils.logger import get_logger
 from .utils.payment_api import ApiResponseError, CurrencyType
 
@@ -18,7 +19,6 @@ log = get_logger()
 class Pay(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
 
     # Request test
     @commands.command(name="request", brief="request money")
@@ -47,7 +47,6 @@ class Pay(commands.Cog):
 
         await ctx.send(f"```\n{currency_data!r}\n```")
 
-
     @commands.command(name="get_tx")
     @commands.is_owner()
     async def get_transaction(self, ctx, sender: discord.User, receiver: discord.User):
@@ -62,7 +61,9 @@ class Pay(commands.Cog):
             verified_amount = await self.bot.db.ensure_precise_amount(coin, amount)
 
         except DecimalInvalidAmountError as e:
-            await ctx.send(f"\N{WARNING SIGN} The amount {e.args[0]} is not valid. A maximum of {e.args[1]} decimal places is allowed.")
+            await ctx.send(
+                f"\N{WARNING SIGN} The amount {e.args[0]} is not valid. A maximum of {e.args[1]} decimal places is allowed."
+            )
             return
 
         await ctx.send(f"Verified amount is {verified_amount} {coin.value}")

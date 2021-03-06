@@ -17,6 +17,7 @@ log = get_logger()
 # view own/others public addresses
 # look user up by public address
 
+
 class Accounts(commands.Cog):
     def __init__(self, bot):
         self.bot = bot

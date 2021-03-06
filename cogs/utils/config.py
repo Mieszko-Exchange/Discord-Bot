@@ -13,6 +13,7 @@ import toml
 class ConfigReadError(Exception):
     pass
 
+
 @lru_cache
 def read(file_path):
     if not isinstance(file_path, Path):

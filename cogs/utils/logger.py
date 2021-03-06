@@ -31,10 +31,15 @@ class DatabaseErrorHandler(Handler):
     def emit(self, record):
         self.loop.create_task(self.db.create_error_report(record))
 
+
 # Handlers
-DATABASE_HANDLER = None # must be setup on init
-FILE_HANDLER = handlers.RotatingFileHandler(filename="logs/medb.log", maxBytes=1 * 1024 * 1024, backupCount=3) # Max size of 1MiB per-file, with 3 past files
-LOG_FORMATTER = logging.Formatter("%(asctime)s %(levelname)s | [module %(module)s -> function %(funcName)s] (%(filename)s:%(lineno)s) | %(message)s")
+DATABASE_HANDLER = None  # must be setup on init
+FILE_HANDLER = handlers.RotatingFileHandler(
+    filename="logs/medb.log", maxBytes=1 * 1024 * 1024, backupCount=3
+)  # Max size of 1MiB per-file, with 3 past files
+LOG_FORMATTER = logging.Formatter(
+    "%(asctime)s %(levelname)s | [module %(module)s -> function %(funcName)s] (%(filename)s:%(lineno)s) | %(message)s"
+)
 
 FILE_HANDLER.setLevel(logging.NOTSET)
 FILE_HANDLER.setFormatter(LOG_FORMATTER)
@@ -45,11 +50,13 @@ def set_level(debug=False):
 
     LOG_LEVEL = logging.DEBUG if debug == True else logging.INFO
 
+
 # Setup database handler
 def set_database(db):
     global DATABASE_HANDLER
 
     DATABASE_HANDLER = DatabaseErrorHandler(db)
+
 
 # Special logger that runs for each module it's called in
 def get_logger():
@@ -71,6 +78,7 @@ def get_logger():
     del call_module
 
     return module_logger
+
 
 # manual method for injecting our handler to pre-existing loggers
 def prepare_logger(log_name):

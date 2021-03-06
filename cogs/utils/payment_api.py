@@ -23,6 +23,7 @@ log = get_logger()
 
 API_ROOT = config.read("./config.toml")["Exchange"]["api_root"]
 
+
 class ApiResponseError(Exception):
     """Raised when the payments API returns an error response."""
 
@@ -33,10 +34,12 @@ class ApiResponseError(Exception):
     def __str__(self):
         return f"{self.__class__.__name__}: HTTP {self.status}\n{textwrap.indent(self.message, '  ')}"
 
+
 class CurrencyType(Enum):
-    TNBCoin  = "TNBC"
+    TNBCoin = "TNBC"
     Litecoin = "LTC"
-    Bitcoin  = "BTC"
+    Bitcoin = "BTC"
+
 
 @dataclass
 class Route:
@@ -47,13 +50,16 @@ class Route:
     def __post_init__(self):
         self.url = f"{API_ROOT}/{self.path}"
 
+
 class PaymentClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
         self.loop = asyncio.get_event_loop()
         self.__session = None
-        self.user_agent = f"RoboBroker Python/{sys.version_info.major}.{sys.version_info.minor} aiohttp/{aiohttp.__version__}"
+        self.user_agent = (
+            f"RoboBroker Python/{sys.version_info.major}.{sys.version_info.minor} aiohttp/{aiohttp.__version__}"
+        )
 
         self.headers = {
             "User-Agent": self.user_agent,
@@ -92,12 +98,14 @@ class PaymentClient:
             api_key = kwargs["send_as"]
 
         try:
-            async with self.__session.request(method, url, params=dict(api_key=api_key), data=data, **kwargs) as response:
+            async with self.__session.request(
+                method, url, params=dict(api_key=api_key), data=data, **kwargs
+            ) as response:
                 log.debug(f"{method} {url} returned {response.status}")
 
                 data = await self.parse_data(response)
 
-                if 200 <= response.status < 300 :
+                if 200 <= response.status < 300:
                     log.debug(f"^ {method} returned {data}")
 
                     # TODO: response data validation
@@ -115,10 +123,7 @@ class PaymentClient:
 
     # Payment receive
     def request_payment(self, currency: CurrencyType, amount: float, *, callback_url: str = None, **kwargs):
-        payload = {
-            "currency": currency.value,
-            "amount": amount
-        }
+        payload = {"currency": currency.value, "amount": amount}
 
         if callback_url is not None:
             payload["callback"] = callback_url
@@ -126,12 +131,10 @@ class PaymentClient:
         return self.request(Route("POST", "payments/receive"), payload, **kwargs)
 
     # Payment send
-    def send_payment(self, currency: CurrencyType, address: str, amount: float, *, includes_fee: Optional[ bool ] = None, **kwargs):
-        payload = {
-            "currency": currency.value,
-            "amount": amount,
-            "receiveAddress": address
-        }
+    def send_payment(
+        self, currency: CurrencyType, address: str, amount: float, *, includes_fee: Optional[bool] = None, **kwargs
+    ):
+        payload = {"currency": currency.value, "amount": amount, "receiveAddress": address}
 
         if includes_fee is not None:
             payload["includeFee"] = includes_fee
@@ -140,9 +143,7 @@ class PaymentClient:
 
     # Balance query
     def check_balance(self, currency: CurrencyType, **kwargs):
-        payload = {
-            "currency": currency.value
-        }
+        payload = {"currency": currency.value}
 
         return self.request(Route("POST", "payments/balance"), payload, **kwargs)
 
