@@ -6,12 +6,15 @@ __all__ = (
     "DecimalPrecisionError",
     "DecimalInvalidAmountError",
     "EscrowStatus",
-    "EscrowAction",
+    "EscrowActionType",
     "EscrowActioner",
+    "BalanceRecipient",
     "User",
     "EscrowPayment",
-    "EscrowEvent",
+    "EscrowWallet",
+    "EscrowAction",
     "SavedAddress",
+    "WithdrawalDetails",
     "SQL",
 )
 
@@ -56,7 +59,7 @@ class EscrowStatus(Enum):
     Failed = "failed"
 
 
-class EscrowAction(Enum):
+class EscrowActionType(Enum):
     Cancelled = "cancel"
     Released = "release"
     Aborted = "abort"
@@ -68,15 +71,28 @@ class EscrowActioner(Enum):
     Moderator = "moderator"
 
 
+class BalanceRecipient(Enum):
+    Sender = "sender"
+    Recipient = "receiver"
+    Nobody = "none"
+
+
 User = namedtuple("User", "id created_at locked")
 
 EscrowPayment = namedtuple(
     "EscrowPayment",
-    "id currency sender receiver source_addr dest_addr status amount started_at for_message last_action_at",
+    "id currency sender receiver source_address dest_address status amount started_at reason last_action_at",
 )
-EscrowEvent = namedtuple("EscrowEvent", "payment_id action actioner actioner_id action_at action_message")
+
+EscrowWallet = namedtuple(
+    "EscrowWallet", "payment_id available_to is_available wallet_address receieved_at withdrawn_at"
+)
+
+EscrowAction = namedtuple("EscrowAction", "payment_id action actioner actioner_id action_at action_message")
 
 SavedAddress = namedtuple("SavedAddress", "address is_public currency")
+
+WithdrawalDetails = namedtuple("WithdrawalDetails", "currency recipient source_address dest_address amount")
 
 
 class SQL:
@@ -188,7 +204,8 @@ class SQL:
 
         if data:
             (_id, timestamp, locked) = data[0]
-            return User(_id, timestamp, bool(locked))
+
+            return User(id=_id, created_at=timestamp, locked=bool(locked))
 
     async def create_user(self, user_id, *, create_locked=False):
         async with self.pool.acquire() as conn:
@@ -196,7 +213,7 @@ class SQL:
                 rows_changed = await cur.execute(
                     dedent(
                         """
-                        INSERT INTO `User` (discordID, createdAt, locked)
+                        INSERT INTO User (discordID, createdAt, locked)
                         VALUES (%s, NOW(), %s);
                     """
                     ),
@@ -255,8 +272,9 @@ class SQL:
                 data = await cur.fetchall()
 
         if data:
-            (address, is_public, code) = data[0]
-            return SavedAddress(address, bool(is_public), CurrencyType(code))
+            (addr, public, code) = data[0]
+
+            return SavedAddress(address=addr, is_public=bool(public), currency=CurrencyType(code))
 
     async def get_all_addresses(self, user_id):
         async with self.pool.acquire() as conn:
@@ -274,8 +292,8 @@ class SQL:
 
         if data:
             results = []
-            for (address, is_public, code) in data:
-                results.append(SavedAddress(address, bool(is_public), CurrencyType(code)))
+            for (addr, public, code) in data:
+                results.append(SavedAddress(address=addr, is_public=bool(public), currency=CurrencyType(code)))
 
             return results
 
@@ -350,7 +368,9 @@ class SQL:
     async def get_payments(self, **kwargs):
         raise UnimplementedError()
 
-    async def create_payment(self, currency, sender_id, receiver_id, src_addr, dst_addr, amount, *, reason=None):
+    async def create_payment(
+        self, currency, sender_id, receiver_id, amount, *, src_addr=None, dst_addr=None, reason=None
+    ):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
@@ -405,22 +425,23 @@ class SQL:
                 status,
                 amount,
                 started_at,
-                for_message,
+                message,
                 last_action_at,
                 currency_code,
             ) = data[0]
+
             return EscrowPayment(
-                _id,
-                CurrencyType(currency_code),
-                sender_id,
-                receiver_id,
-                src_addr,
-                dst_addr,
-                EscrowStatus(status),
-                amount,
-                started_at,
-                for_message,
-                last_action_at if isinstance(last_action_at, datetime) else None,
+                id=_id,
+                currency=CurrencyType(currency_code),
+                sender=sender_id,
+                receiver=receiver_id,
+                src_address=src_addr,
+                dst_address=dst_addr,
+                status=EscrowStatus(status),
+                amount=Decimal(amount),
+                started_at=started_at,
+                reason=message,
+                last_action_at=last_action_at if isinstance(last_action_at, datetime) else None,
             )
 
     async def update_payment_status(self, payment_id, status):
@@ -457,7 +478,15 @@ class SQL:
 
         if data:
             (_id, action, actioner, actioner_id, action_at, action_msg) = data[0]
-            return EscrowEvent(_id, EscrowAction(action), EscrowActioner(actioner), actioner_id, action_at, action_msg)
+
+            return EscrowAction(
+                id=_id,
+                action=EscrowActionType(action),
+                actioner=EscrowActioner(actioner),
+                actioner_id=actioner_id,
+                action_at=action_at,
+                action_message=action_msg,
+            )
 
     async def create_payment_event(self, payment_id, action, actioner, actioner_id, *, message=None):
         async with self.pool.acquire() as conn:
@@ -476,6 +505,89 @@ class SQL:
                         actioner_id,
                         self.to_time_str_ms(datetime.utcnow()),
                         message,
+                    ),
+                )
+                rows_changed = cur.rowcount
+
+        return rows_changed == 1
+
+    # EscrowWallet methods
+
+    async def get_wallet(self, payment_id):
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    dedent(
+                        """
+                        SELECT * FROM EscrowWallet
+                        WHERE paymentID = %s
+                        LIMIT 1;
+                    """
+                    ),
+                    (payment_id,),
+                )
+                data = cur.fetchall()
+
+        if data:
+            (_id, available_to, available, address, received_at, withdrawn_at) = data[0]
+
+            return EscrowWallet(
+                payment_id=_id,
+                available_to=available_to,
+                is_available=available,
+                wallet_address=address,
+                received_at=received_at,
+                withdrawn_at=withdrawn_at,
+            )
+
+    async def get_details_for_withdrawal(self, payment_id):
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    dedent(
+                        """
+                        SELECT c.code, tx.sender, tx.receiver, tx.sourceAddress,
+                            tx.destAddress, tx.amount, b.receiptWallet, b.availableTo
+                        FROM EscrowPayment tx
+                        INNER JOIN EscrowWallet b ON b.paymentID = tx.id
+                        INNER JOIN Currency c ON c.id = tx.currency
+                        WHERE tx.id = %s AND tx.status = 'complete' AND b.fundsAvailable = 1
+                        AND b.availableTo != 'none'
+                        LIMIT 1;
+                    """
+                    ),
+                    (payment_id,),
+                )
+                data = await cur.fetchall()
+
+        if data:
+            (currency, sender_id, receiver_id, src_addr, dst_addr, amount, wallet_address, recipient) = data[0]
+
+            recipient = BalanceRecipient(recipient)
+
+            assert recipient != BalanceRecipient.Nobody, "recipient is 'none' in get_details_for_withdrawal"
+
+            return WithdrawalDetails(
+                currency=CurrencyType(currency),
+                recipient=sender_id if recipient == BalanceRecipient.Sender else receiver_id,
+                source_address=wallet_address,
+                dest_address=src_addr if recipient == BalanceRecipient.Sender else dst_addr,
+                amount=Decimal(amount),
+            )
+
+    async def create_balance(self, payment_id, wallet_address):
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    dedent(
+                        """
+                        INSERT INTO EscrowWallet (paymentID, receiptWallet)
+                        VALUES (%s, %s);
+                    """
+                    ),
+                    (
+                        payment_id,
+                        wallet_address,
                     ),
                 )
                 rows_changed = cur.rowcount

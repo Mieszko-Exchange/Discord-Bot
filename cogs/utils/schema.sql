@@ -7,8 +7,8 @@ CREATE TABLE Currency (
   id int(10) unsigned NOT NULL AUTO_INCREMENT,
   code varchar(4) NOT NULL UNIQUE KEY,
   `precision` tinyint(3) unsigned NOT NULL,
-  PRIMARY KEY (id)
-  KEY (code),
+  PRIMARY KEY (id),
+  KEY (code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Database error logging
@@ -46,19 +46,19 @@ CREATE TABLE LinkedAddress (
 
 -- Escrow stuff
 CREATE TABLE EscrowPayment (
-    id serial, -- necessary for EscrowEvent relation
+    id serial, -- necessary for EscrowAction relation
     currency int(10) unsigned NOT NULL,
     sender bigint unsigned NOT NULL,
     receiver bigint unsigned NOT NULL,
-    sourceAddress varchar(256) NOT NULL,
-    destAddress varchar(256) NOT NULL,
+    sourceAddress varchar(256),
+    destAddress varchar(256),
     status enum('pending', 'paid', 'complete', 'failed') NOT NULL,
     amount decimal(24, 12) unsigned NOT NULL,
     startedAt timestamp NOT NULL,
     forMessage tinytext,
     lastActionAt timestamp,
     PRIMARY KEY (id),
-    KEY(sender, receiver),
+    KEY (sender, receiver),
     KEY (sourceAddress, destAddress),
     KEY (currency),
     KEY (sender),
@@ -68,10 +68,22 @@ CREATE TABLE EscrowPayment (
     FOREIGN KEY (receiver) REFERENCES User (discordID) ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Escrow action details
-CREATE TABLE EscrowEvent (
+-- Escrow payment details
+CREATE TABLE EscrowWallet (
     paymentID serial,
-    action enum('cancel', 'release', 'abort'),
+    availableTo enum('sender', 'receiver', 'none') NOT NULL DEFAULT 'none',
+    fundsAvailable tinyint(1) unsigned NOT NULL DEFAULT 0,
+    receiptWallet tinytext NOT NULL,
+    receivedAt timestamp,
+    withdrawnAt timestamp,
+    PRIMARY KEY  (paymentID),
+    FOREIGN KEY (paymentID) REFERENCES EscrowPayment (id) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Escrow action details
+CREATE TABLE EscrowAction (
+    paymentID serial,
+    action enum('cancel', 'release', 'abort') NOT NULL,
     actioner enum('sender', 'receiver', 'moderator') NOT NULL,
     actionerID bigint unsigned NOT NULL,
     actionAt timestamp NOT NULL,

@@ -12,9 +12,8 @@ from discord.ext import commands
 from .utils.db import (
     DecimalInvalidAmountError,
     DecimalPrecisionError,
-    EscrowAction,
     EscrowActioner,
-    EscrowEvent,
+    EscrowActionType,
     EscrowPayment,
     EscrowStatus,
     SavedAddress,
@@ -247,7 +246,7 @@ class Escrow(commands.Cog):
 
             else:
                 did_report = await self.bot.db.create_payment_event(
-                    maybe_transaction.id, EscrowAction.Aborted, EscrowActioner.Sender, sender.id, message=reason
+                    maybe_transaction.id, EscrowActionType.Aborted, EscrowActioner.Sender, sender.id, message=reason
                 )
                 did_update = await self.bot.db.update_payment_status(maybe_transaction.id, EscrowStatus.Failed)
 
@@ -283,7 +282,7 @@ class Escrow(commands.Cog):
 
             else:
                 did_report = await self.bot.db.create_payment_event(
-                    maybe_transaction.id, EscrowAction.Released, EscrowActioner.Sender, sender.id
+                    maybe_transaction.id, EscrowActionType.Released, EscrowActioner.Sender, sender.id
                 )
                 did_update = await self.bot.db.update_payment_status(maybe_transaction.id, EscrowStatus.Completed)
 
@@ -317,7 +316,11 @@ class Escrow(commands.Cog):
 
             else:
                 did_report = await self.bot.db.create_payment_event(
-                    maybe_transaction.id, EscrowAction.Cancelled, EscrowActioner.Recipient, recipient.id, message=reason
+                    maybe_transaction.id,
+                    EscrowActionType.Cancelled,
+                    EscrowActioner.Recipient,
+                    recipient.id,
+                    message=reason,
                 )
                 did_update = await self.bot.db.update_payment_status(maybe_transaction.id, EscrowStatus.Failed)
 

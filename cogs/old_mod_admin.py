@@ -10,9 +10,8 @@ from discord.ext import commands
 from .utils.db import (
     DecimalInvalidAmountError,
     DecimalPrecisionError,
-    EscrowAction,
     EscrowActioner,
-    EscrowEvent,
+    EscrowActionType,
     EscrowPayment,
     EscrowStatus,
     SavedAddress,
@@ -63,7 +62,7 @@ class Admin(commands.Cog):
 
             else:
                 did_report = await self.bot.db.create_payment_event(
-                    maybe_transaction.id, EscrowAction.Released, EscrowActioner.Moderator, ctx.author.id
+                    maybe_transaction.id, EscrowActionType.Released, EscrowActioner.Moderator, ctx.author.id
                 )
                 did_update = await self.bot.db.update_payment_status(maybe_transaction.id, EscrowStatus.Completed)
 
@@ -88,7 +87,11 @@ class Admin(commands.Cog):
 
         else:
             did_report = await self.bot.db.create_payment_event(
-                maybe_transaction.id, EscrowAction.Cancelled, EscrowActioner.Moderator, ctx.author.id, message=reason
+                maybe_transaction.id,
+                EscrowActionType.Cancelled,
+                EscrowActioner.Moderator,
+                ctx.author.id,
+                message=reason,
             )
             did_update = await self.bot.db.update_payment_status(maybe_transaction.id, EscrowStatus.Failed)
 
