@@ -33,10 +33,10 @@ class Pay(commands.Cog):
         else:
             await ctx.send(f"Transaction filed..\n{response}")
 
-    @commands.command(name="addrs_for")
+    @commands.command(name="addr_for")
     @commands.is_owner()
     async def check_addr(self, ctx, coin: CurrencyType):
-        currency_data = await self.bot.db.get_addresses_for(ctx.author.id, coin)
+        currency_data = await self.bot.db.get_address_for(ctx.author.id, coin)
 
         await ctx.send(f"```\n{currency_data!r}\n```")
 

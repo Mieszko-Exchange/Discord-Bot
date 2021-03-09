@@ -10,12 +10,14 @@ import asyncio
 import json
 import sys
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
 from textwrap import indent
 from typing import Optional
 
 import aiohttp
 
+from . import colors as C
 from . import config
 from .logger import get_logger
 
@@ -86,16 +88,13 @@ class PaymentClient:
         return text
 
     # here's where the magic happens
-    async def request(self, route: Route, data: dict = None, **kwargs):
+    async def request(self, route: Route, data: Optional[dict] = None, **kwargs):
         method = route.method
         url = route.url
 
         data = data or {}
 
-        api_key = self.api_key
-
-        if "send_as" in kwargs:
-            api_key = kwargs["send_as"]
+        api_key = kwargs.get("send_as", self.api_key)
 
         try:
             async with self.__session.request(
@@ -117,12 +116,12 @@ class PaymentClient:
                     raise ApiResponseError(response.status, data)
 
         except Exception as e:
-            print(f"[{type(e).__name__}]: {e}")
+            print(f"{f'[{type(e).__name__}]' @ C.on_bright_red.bold}: {e}")
 
     # API methods
 
     # Payment receive
-    def request_payment(self, currency: CurrencyType, amount: float, *, callback_url: str = None, **kwargs):
+    def request_payment(self, currency: CurrencyType, amount: Decimal, *, callback_url: Optional[str] = None, **kwargs):
         payload = {"currency": currency.value, "amount": amount}
 
         if callback_url is not None:

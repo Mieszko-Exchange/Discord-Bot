@@ -193,6 +193,8 @@ class BrokerBot(commands.Bot):
 
         self.ipc = ipc.Server(self, secret_key=credentials["IPC"]["secret"])
 
+        self.payment_tasks = {}  # dict[(sender_id, receiver_id): task]
+
         global log
         log = logger.get_logger()
 
